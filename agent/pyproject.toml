@@ -1,0 +1,11 @@
+[project]
+name = "claw-a-thon-demo-agent"
+version = "0.1.0"
+description = "Software Engineering Mock Interviewer — Agent API"
+requires-python = ">=3.14"
+dependencies = [
+    "openai>=1.0.0",
+    "python-dotenv>=1.2.2",
+    "fastapi>=0.100.0",
+    "uvicorn>=0.20.0",
+]

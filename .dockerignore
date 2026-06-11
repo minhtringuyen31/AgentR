@@ -1,0 +1,10 @@
+.env
+.env.ui
+.greennode.json
+.agentbase/
+.claude/
+__pycache__/
+*.pyc
+*.pyo
+.git/
+README.md
