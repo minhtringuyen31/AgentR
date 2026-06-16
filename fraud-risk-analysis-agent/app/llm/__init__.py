@@ -1,3 +1,3 @@
-from app.llm.base import get_llm, LLMResponse
+from app.llm.base import BaseLLM, LLMResponse, OpenAILLM, get_llm
 
-__all__ = ["get_llm", "LLMResponse"]
+__all__ = ["BaseLLM", "LLMResponse", "OpenAILLM", "get_llm"]

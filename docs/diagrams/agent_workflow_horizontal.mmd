@@ -1,0 +1,22 @@
+flowchart LR
+    START([START]) --> INGEST[ingest_node]
+    INGEST --> ANOMALY[anomaly_check_node]
+    ANOMALY -->|normal| ACTION[action_output_node]
+    ANOMALY -->|anomalous| FETCH[fetch_data_node]
+    ACTION --> ENDA([END])
+
+    FETCH --> INIT[investigation_init]
+    INIT --> PLAN[plan_node]
+    PLAN --> ACT[act_node]
+    ACT --> OBS[observe_node]
+    OBS -->|continue| PLAN
+    OBS -->|done| FINAL[finalize_investigation]
+    FINAL --> POLICY[policy_output]
+    POLICY --> ENDB([END])
+
+    classDef llm fill:#fde68a,stroke:#b45309,color:#000
+    classDef tool fill:#bfdbfe,stroke:#1d4ed8,color:#000
+    classDef start fill:#bbf7d0,stroke:#15803d,color:#000
+    class INGEST,ANOMALY,PLAN,OBS llm
+    class FETCH,INIT,ACT,FINAL,POLICY,ACTION tool
+    class START,ENDA,ENDB start

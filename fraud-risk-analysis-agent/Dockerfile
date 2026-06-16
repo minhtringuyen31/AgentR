@@ -7,8 +7,8 @@ RUN pip install uv
 COPY pyproject.toml uv.lock ./
 RUN uv sync --no-dev --frozen
 
-COPY app/main.py server.py ./
+COPY app ./app
 
 EXPOSE 8080
 
-CMD ["uv", "run", "uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uv", "run", "uvicorn", "app.service:app", "--host", "0.0.0.0", "--port", "8080"]
