@@ -1,6 +1,6 @@
 # AgentR — Frau Risk AI Agent System
 
-**AgentR** là hệ thống agent AI nội bộ được xây dựng cho đội ngũ **Risk Management** tại **ZaloPay**. Hàng ngày phải đối mặt với bài toán **phát hiện gian** lận trong một hệ thống giao dịch vận hành liên tục, khối lượng lớn và các pattern tấn công không ngừng thay đổi.
+**AgentR** là hệ thống AI agent nội bộ được xây dựng cho đội ngũ **Risk Management** tại **ZaloPay**. Hàng ngày phải đối mặt với bài toán **phát hiện gian** lận trong một hệ thống giao dịch vận hành liên tục, khối lượng lớn và các pattern tấn công không ngừng thay đổi.
 
 Bài toán cốt lõi không phải là thiếu dữ liệu mà là khoảng cách quá lớn giữa lúc một tín hiệu bất thường xuất hiện và lúc nó trở thành một rule thực sự chặn được gian lận. Quy trình truyền thống đòi hỏi strategist phải đọc report, tự điều tra, phân tích data, phát hiển hành vì bất thường tiến đến thiết lập các rule vào hệ thống. Công việc tốn thời gian, dễ bỏ sót và không thể scale kịp tốc độ của fraud.
 
