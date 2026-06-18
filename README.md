@@ -1,4 +1,4 @@
-# AgentR — Frau Risk AI Agent System
+# AgentR — Fraud Risk AI Agent System
 
 **AgentR** là hệ thống AI agent nội bộ được xây dựng cho đội ngũ **Risk Management** tại **ZaloPay**. Hàng ngày phải đối mặt với bài toán **phát hiện gian** lận trong một hệ thống giao dịch vận hành liên tục, khối lượng lớn và các pattern tấn công không ngừng thay đổi.
 
