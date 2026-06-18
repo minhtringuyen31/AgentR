@@ -1,6 +1,6 @@
 # AgentR — Risk & Fraud Agent System
 
-AgentR là một hệ thống agent AI phục vụ nội bộ phòng ban **Risk ** của **ZaloPay**: tự động **phát hiện xu hướng gian lận (fraud)** từ report của các stakeholders, **điều tra** trên data warehouse giao dịch ZaloPay để tìm ra pattern có precision/recall đủ tốt, rồi **biến pattern đó thành rule config** triển khai được trên hệ thống rule-engine của **Risk Platform** — với human (strategist) xác nhận trước khi action.
+AgentR là một hệ thống agent AI phục vụ nội bộ phòng ban **Risk** của **ZaloPay**: tự động **phát hiện xu hướng gian lận (fraud)** từ report của các stakeholders, **điều tra** trên data warehouse giao dịch ZaloPay để tìm ra pattern có precision/recall đủ tốt, rồi **biến pattern đó thành rule config** triển khai được trên hệ thống rule-engine của **Risk Platform** — với human (strategist) xác nhận trước khi action.
 
 Hệ thống gồm **hai agent LangGraph** nối thành một pipeline, dùng chung một MySQL warehouse `risk_db`:
 
@@ -19,10 +19,8 @@ Hệ thống gồm **hai agent LangGraph** nối thành một pipeline, dùng ch
    user_profile, user_journey, ...)                                         (rule đã duyệt, active)
 ```
 
-- **Agent 1 — `fraud-analysis-agent`** điều tra dữ liệu, đề xuất pattern (SQL predicate + metrics + action).
-- **Agent 2 — `config-agent`** nhận pattern đó (hoặc mô tả chat của strategist), sinh ra `FraudConfig` JSON và ghi vào `risk_db.rule_config` sau khi người duyệt.
-
-> ⚠️ **Lưu ý về thiết kế:** Code hiện tại đã **khác đáng kể** so với các tài liệu thiết kế ban đầu trong `docs/`. README này mô tả **trạng thái implementation thực tế**. Các điểm divergence chính được liệt kê ở [§7](#7-divergence-so-với-tài-liệu-thiết-kế-ban-đầu).
+- **Agent 1 — `fraud-analysis-agent`** từ động điều tra dữ liệu, phân tích, tìm kiếm các behavior pattern của fraudster từ đó chuẩn bị một báo cáo toàn diện về các trường hợp này.
+- **Agent 2 — `config-agent`** lấy cảm hứng từ Claude Code, config agent hỗ trợ strategist các tác vụ liên quan đến việc set up rule configuration lên hệ thống Risk Engine. Từ pattern được đề xuất ở agent 1 (hoặc mô tả của strategist trên khung chat), agent phân tích, suy luận, trao đổi, tương tác với stragist để sinh ra các bộ Rule Config và thực hiện tích hợp vào hệ thống khi được chấp nhận.
 
 ---
 
