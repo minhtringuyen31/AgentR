@@ -1,27 +1,19 @@
-# AgentR — Risk & Fraud Agent System
+# AgentR — Frau Risk AI Agent System
 
-AgentR là một hệ thống agent AI phục vụ nội bộ phòng ban **Risk** của **ZaloPay**: tự động **phát hiện xu hướng gian lận (fraud)** từ report của các stakeholders, **điều tra** trên data warehouse giao dịch ZaloPay để tìm ra pattern có precision/recall đủ tốt, rồi **biến pattern đó thành rule config** triển khai được trên hệ thống rule-engine của **Risk Platform** — với human (strategist) xác nhận trước khi action.
+**AgentR** là hệ thống agent AI nội bộ được xây dựng cho đội ngũ **Risk Management** tại **ZaloPay**. Hàng ngày phải đối mặt với bài toán **phát hiện gian** lận trong một hệ thống giao dịch vận hành liên tục, khối lượng lớn và các pattern tấn công không ngừng thay đổi.
 
-Hệ thống gồm **hai agent LangGraph** nối thành một pipeline, dùng chung một MySQL warehouse `risk_db`:
+Bài toán cốt lõi không phải là thiếu dữ liệu mà là khoảng cách quá lớn giữa lúc một tín hiệu bất thường xuất hiện và lúc nó trở thành một rule thực sự chặn được gian lận. Quy trình truyền thống đòi hỏi strategist phải đọc report, tự điều tra, phân tích data, phát hiển hành vì bất thường tiến đến thiết lập các rule vào hệ thống. Công việc tốn thời gian, dễ bỏ sót và không thể scale kịp tốc độ của fraud.
 
-```
-   Email Report / Post-mortem update event
-              │
-              ▼
-   ┌─────────────────────────┐        RuleJSON / final_pattern        ┌──────────────────────────┐
-   │  fraud-analysis-agent    │  ──────────  (qua run_id)  ──────────▶ │  config-agent            │
-   │  (Risk Analysis Agent)   │                                        │  (Config Agent)            │
-   │  phát hiện + điều tra     │                                        │  sinh rule config + ghi DB │
-   └─────────────────────────┘                                        └──────────────────────────┘
-              │                                                                     │
-              ▼                                                                     ▼
-   MySQL risk_db (trans_log, pom_acr,                                   MySQL risk_db.rule_config
-   user_profile, user_journey, ...)                                         (rule đã duyệt, active)
-```
+AgentR giải quyết điều đó bằng cách tự động hóa toàn bộ vòng điều tra: nhận tín hiệu từ stakeholders, tự đặt hypothesis, với bộ skill của fraud risk analysis thực hiện phân tích data để tìm pattern có đủ độ tin cậy, rồi tổng hợp thành rule config sẵn sàng deploy. AgentR sẽ phối hợp cùng strategist để đưa các hành vi, quyết định quan trong trong quy trình.
 
-- **Agent 1 — `fraud-analysis-agent`** từ động điều tra dữ liệu, phân tích, tìm kiếm các behavior pattern của fraudster từ đó chuẩn bị một báo cáo toàn diện về các trường hợp này.
-- **Agent 2 — `config-agent`** lấy cảm hứng từ Claude Code, config agent hỗ trợ strategist các tác vụ liên quan đến việc set up rule configuration lên hệ thống Risk Engine. Từ pattern được đề xuất ở agent 1 (hoặc mô tả của strategist trên khung chat), agent phân tích, suy luận, trao đổi, tương tác với stragist để sinh ra các bộ Rule Config và thực hiện tích hợp vào hệ thống khi được chấp nhận.
+Ý nghĩa thực sự của dự án không chỉ là tiết kiệm thời gian mà còn giúp đội Risk phản ứng nhanh hơn fraud. Quá trình xử lý được rút ngắn từ **vài ngày** xuống chỉ còn **vài phút**.
 
+Kiến trúc hệ thống của **AgentR**:
+
+![system-overview](/docs/assets/system-overview.jpeg)
+
+- **Agent 1 — `fraud-analysis-agent`**  tự động điều tra dữ liệu, phân tích, tìm kiếm các behavior pattern của fraudster từ đó chuẩn bị một báo cáo toàn diện về các trường hợp này.
+- **Agent 2 — `config-agent`**  lấy cảm hứng từ **Claude Code**, **Config Agent** hỗ trợ strategist các tác vụ liên quan đến việc set up rule configuration lên hệ thống **Risk Engine**. Từ pattern được đề xuất ở agent 1 (hoặc mô tả của strategist trên khung chat), agent phân tích, suy luận, trao đổi, tương tác với stragist để sinh ra các bộ Rule Config và thực hiện tích hợp vào hệ thống khi được chấp nhận.
 ---
 
 ## Mục lục
@@ -32,25 +24,24 @@ Hệ thống gồm **hai agent LangGraph** nối thành một pipeline, dùng ch
 4. [Tầng dữ liệu dùng chung](#4-tầng-dữ-liệu-dùng-chung-mysql-risk_db)
 5. [Chạy thử nhanh](#5-chạy-thử-nhanh)
 6. [Biến môi trường](#6-biến-môi-trường)
-7. [Divergence so với tài liệu thiết kế ban đầu](#7-divergence-so-với-tài-liệu-thiết-kế-ban-đầu)
-8. [Triển khai](#8-triển-khai)
-9. [Cấu trúc repo](#9-cấu-trúc-repo)
+7. [Triển khai](#8-triển-khai)
+8. [Cấu trúc repo](#9-cấu-trúc-repo)
 
 ---
 
 ## 1. Thành phần dự án
 
-| Thư mục | Vai trò | Trạng thái |
-|---|---|---|
-| **`fraud-analysis-agent/`** | **Risk Analysis Agent** — phát hiện anomaly + điều tra ReAct + sinh RuleJSON. FastAPI, port `8080` (map `8081` ngoài). | ✅ Active |
-| **`fraud-config-agent-v2/`** | **Config Agent (v2)** — sinh `FraudConfig` rule và ghi MySQL sau human review. FastAPI, port `8080` (map `8081`). | ✅ Active |
-| `risk-portal-ui/` | Frontend React + Vite (template Metronic 9) cho Risk Portal, gọi `fraud-analysis-agent`. Port `3000`. | ✅ Active |
-| `config-agent/` | Phiên bản **V1** của Config Agent (có `rule.json`). Bị thay thế bởi `fraud-config-agent-v2`. | 🗄️ Legacy |
-| `agent/` + `ui/` | Scaffold demo gốc (một "Mock Interviewer" Streamlit) từ lúc khởi tạo project trên AgentBase. Không thuộc nghiệp vụ risk. | 🗄️ Legacy/demo |
-| `docs/` | Tài liệu thiết kế gốc (AgentR Overview/System Design PDF, knowledge base fraud, workflow, diagram). | 📚 Reference |
-| `docker-compose.yml` | Orchestrate cả 4 service (agent demo, fraud-analysis-agent, ui, risk-portal-ui). | — |
+| Thư mục | Vai trò                                                                                                                                       | Trạng thái |
+|---|-----------------------------------------------------------------------------------------------------------------------------------------------|---|
+| **`fraud-analysis-agent/`** | **Risk Analysis Agent** — phát hiện anomaly + điều tra ReAct + sinh RuleJSON, Fraud Analysis Report. FastAPI, port `8080` (map `8081` ngoài). | ✅ Active |
+| **`fraud-config-agent-v2/`** | **Config Agent (v2)** — sinh `FraudConfig` rule và ghi MySQL sau human review. FastAPI, port `8080` (map `8081`).                             | ✅ Active |
+| `risk-portal-ui/` | Frontend React + Vite (template Metronic 9) cho Risk Portal, gọi `fraud-analysis-agent`. Port `3000`.                                         | ✅ Active |
+| `config-agent/` | Phiên bản **V1** của Config Agent (có `rule.json`). Bị thay thế bởi `fraud-config-agent-v2`.                                                  | 🗄️ Legacy |
+| `agent/` + `ui/` | Scaffold demo gốc (một "Mock Interviewer" Streamlit) từ lúc khởi tạo project trên AgentBase. Không thuộc nghiệp vụ risk.                      | 🗄️ Legacy/demo |
+| `docs/` | Tài liệu thiết kế gốc (AgentR Overview/System Design PDF, knowledge base fraud, workflow, diagram).                                           | 📚 Reference |
+| `docker-compose.yml` | Orchestrate cả 4 service (agent demo, fraud-analysis-agent, ui, risk-portal-ui).                                                              | — |
 
-> `docker-compose.yml` ở root vẫn build service `agent` (demo interviewer) và `ui` cũ. Pipeline risk thực tế là **`fraud-analysis-agent` + `fraud-config-agent-v2` + `risk-portal-ui`**.
+> `docker-compose.yml` ở root vẫn build service. Pipeline risk thực tế là **`fraud-analysis-agent` + `fraud-config-agent-v2` + `risk-portal-ui`**.
 
 ---
 
@@ -60,19 +51,7 @@ Một agent LangGraph phát hiện làn sóng gian lận mới nổi từ report
 
 ### Workflow (StateGraph)
 
-```
-START → ingest → anomaly_check ──(normal)──▶ action_output → END
-                       │
-                  (anomalous)
-                       ▼
-                  fetch_data → investigation_init → plan ⇄ act ⇄ observe
-                                                        │           │
-                                                        └──── router ┘
-                                       (continue / converged / max_iter / no_pattern)
-                                                        │
-                                                        ▼
-                                          finalize_investigation → policy_output → END
-```
+![fraud-analysis-agent-workflow](/docs/assets/fraud-analysis-topology.png)
 
 **Các node** (`app/nodes/`):
 
@@ -115,19 +94,14 @@ State đầy đủ ở `app/state.py` (`AgentState` TypedDict + các Pydantic mo
 
 ## 3. Agent 2 — `fraud-config-agent-v2` (Config Agent)
 
-Agent chat reasoning biến một fraud signal thành **rule config triển khai được** (`FraudConfig` JSON), ghi vào MySQL `risk_db.rule_config` sau khi người xác nhận. Hai đường vào:
+Agent chat reasoning biến một fraud signal thành **rule config triển khai được** (`FraudConfig` JSON), tích hợp config và cập nhật vào MySQL `risk_db.rule_config` sau khi người xác nhận. Hai đường vào:
 
 1. **Manual chat** — strategist mô tả pattern bằng ngôn ngữ tự nhiên (hỗ trợ tiếng Việt).
 2. **From report** — kéo một run đã hoàn tất của `fraud-analysis-agent` theo `run_id`, đọc `final_pattern` (SQL predicate, signal columns, recommended action) + `recommendation` và **tự reason ra config** (cố ý **không** dùng thẳng `rule_json` của agent kia).
 
 ### Workflow (StateGraph + interrupt)
 
-```
-START → intake → clarify ──clarify──▶ END (hỏi lại; resume ở /chat kế tiếp)
-                        └─proceed─▶ dependency_resolver → build_config → validator
-validator ──done──▶ human_review  [INTERRUPT]  ──approve──▶ update_conf (ghi MySQL) → END
-                                                └─reject──▶ END (không ghi)
-```
+![config-builder-agent-workflow](/docs/assets/config-builder-agent-topology.png)
 
 **Các node** (`agent/nodes.py`):
 
@@ -135,7 +109,7 @@ validator ──done──▶ human_review  [INTERRUPT]  ──approve──▶ 
 - **`clarify`** (LLM) — hỏi tối đa 1 câu khi thiếu field bắt buộc (`app_id`/`event_name`, `action`, ≥1 condition); history lưu theo session (sửa lỗi multi-turn của V1).
 - **`dependency_resolver`** (tool) — dedup mức rule: rule đã tồn tại trong event nào chưa → `create` vs `update`.
 - **`build_config`** (LLM reasoning) — phát `FraudConfig` events JSON; khi update thì merge vào event hiện có; nhận lỗi validate trước đó để retry hội tụ.
-- **`validator`** (tool) — **hiện forced-pass** (luôn cho qua review); logic validate + vòng retry đã nối nhưng đang dormant.
+- **`validator`** (tool) — validate config bằng cách gọi qua internal service để test logic flow trước khi apply vào hệ thống, logic validate + vòng retry
 - **`human_review`** — interrupt; strategist approve/reject.
 - **`update_conf`** (tool) — khi approve: ghi MySQL `rule_config` (atomic theo event) + lưu file plan `output/` + breadcrumb session.
 
@@ -181,14 +155,14 @@ Operator: `GREATER_THAN(_OR_EQUAL)`, `LESS_THAN(_OR_EQUAL)`, `EQUALS`, `NOT_EQUA
 
 ## 4. Tầng dữ liệu dùng chung (MySQL `risk_db`)
 
-Cả hai agent dùng chung một MySQL warehouse (trong `docker-compose.yml` trỏ tới host GreenNode self-hosted):
+Cả hai agent dùng chung một MySQL warehouse (trong `docker-compose.yml` trỏ tới host GreenNode self-hosted), với data được mock hoàn toàn sử dụng trong phạm vi cuộc thi:
 
-| Bảng | Vai trò |
-|---|---|
-| `trans_log` | Toàn bộ giao dịch (transID, appID, userID, reqDate, userChargeAmount, integratedChannel, bankType, bankCode, is_kyc, …). |
-| `pom_acr` | Subset fraud đã xác nhận (cột trans_log + `fraud_type`, `report_date`, `is_loss`). |
-| `user_profile` | Identity/KYC/trust (account age, ekyc/nfc status, cccd, linked bank/card, trust flags). |
-| `user_journey` | Sự kiện trước giao dịch (register, login_new_device, change_phone, reset_pin, map_bank, eKYC, change_device…). |
+| Bảng | Vai trò                                                                                                              |
+|---|----------------------------------------------------------------------------------------------------------------------|
+| `trans_log` | Toàn bộ giao dịch                                                                                                    |
+| `pom_acr` | Subset fraud đã xác nhận                                                                                             |
+| `user_profile` | Thông tin user được lưu trữ đảm bảo policy                                                                           |
+| `user_journey` | Sự kiện trước giao dịch (register, login_new_device, change_phone, reset_pin, map_bank, eKYC, change_device…).       |
 | `rule_config` | **Output** của Config Agent: rule đã duyệt (event_name, config_json, status, source_run_id, created_by, created_at). |
 
 `fraud-analysis-agent` **đọc** 4 bảng đầu để điều tra; `fraud-config-agent-v2` **ghi** vào `rule_config`. Tham khảo knowledge base nghiệp vụ ở `docs/Fraud_Analysis_Knowledge.md` (trigger rule A/B/C, metric theo nguồn, ngưỡng candidate rule, tiêu chí accept theo action MONITOR/CHALLENGE/REJECT/BLACKLIST).
@@ -248,30 +222,14 @@ Dùng chung (`.env.example` ở root):
 
 ---
 
-## 7. Divergence so với tài liệu thiết kế ban đầu
-
-Tài liệu trong `docs/` (AgentR Overview/System Design, `AGENT_WORKFLOW.md`, diagram) mô tả thiết kế gốc; implementation đã thay đổi:
-
-- **Vòng điều tra → ReAct.** Docs/README cũ nói tới các node rời rạc `hypothesis_node` / `sql_gen_node` / `metrics` / `human_review`. Thực tế gộp thành **vòng ReAct `plan → act → observe → router`** dưới `app/nodes/investigation/`, với 4 tool (`query_with_filters`, `aggregate`, `compute_metrics`, `raw_sql`) thay cho `sql_gen` riêng.
-- **Human review chuyển sang Config Agent.** `fraud-analysis-agent` chạy autonomous tới khi phát RuleJSON (không dừng chờ duyệt; `review_ui.py` chỉ read-only). **Cổng human-in-the-loop thực sự nằm ở `fraud-config-agent-v2`** (interrupt trước `human_review`, approve/reject qua `/runs/{id}/review`).
-- **Config Agent đã vượt qua giai đoạn "chỉ đọc".** `IMPLEMENTATION_PLAN.md` (Giai đoạn 2) chủ trương DỪNG ở việc xuất config plan, **chưa** làm `update_conf`. Thực tế `fraud-config-agent-v2` **đã có write-path**: `update_conf` ghi thẳng MySQL `rule_config` sau khi approve.
-- **`validator` đang dormant.** Node validate + vòng retry đã nối nhưng hiện **forced-pass** (luôn qua review).
-- **Config Agent reason lại config, không passthrough RuleJSON.** Thay vì tiêu thụ trực tiếp `rule_json` của analysis agent, V2 chỉ lấy `final_pattern` + `recommendation` rồi tự sinh `FraudConfig`.
-- **Đã có 2 thế hệ Config Agent.** `config-agent/` (V1) bị thay bằng `fraud-config-agent-v2/` (sửa loop clarify multi-turn, đổi sang schema `FraudConfig` events).
-- **Warehouse mặc định.** Docs nhắc DuckDB cho dev; cấu hình deploy hiện trỏ **MySQL `risk_db`** (DuckDB/parquet chỉ còn là mock layer).
-
-Khi đọc `docs/`, hãy coi đó là **ý đồ thiết kế**, còn nguồn chân lý về hành vi là code trong `fraud-analysis-agent/` và `fraud-config-agent-v2/`.
-
----
-
-## 8. Triển khai
+## 7. Triển khai
 
 - **GreenNode AgentBase / VNG Cloud AI Platform.** Project khởi tạo trên AgentBase (`.greennode.json`, thư mục `.agentbase/`); endpoint runtime dạng `*.agentbase-runtime.aiplatform.vngcloud.vn`. LLM phục vụ qua VNG MAAS (`maas-llm-aiplatform-hcm.api.vngcloud.vn/v1`).
 - **Docker.** Mỗi agent có `Dockerfile` riêng (expose `8080`). `docker-compose.yml` ở root build cả pipeline. Image dùng `uv` (analysis agent, Python 3.13) hoặc `pip` (config agent, Python 3.11).
 
 ---
 
-## 9. Cấu trúc repo
+## 8. Cấu trúc repo
 
 ```
 .
@@ -295,6 +253,5 @@ Khi đọc `docs/`, hãy coi đó là **ý đồ thiết kế**, còn nguồn ch
 ├── agent/ + ui/               # Scaffold demo gốc (Mock Interviewer) — legacy
 ├── docs/                      # Tài liệu thiết kế gốc + knowledge base fraud + diagrams
 ├── docker-compose.yml
-├── IMPLEMENTATION_PLAN.md     # Kế hoạch 4 giai đoạn (lưu ý đã vượt qua một số mốc)
 └── README.md
 ```
