@@ -17,18 +17,6 @@ Kiến trúc hệ thống của **AgentR**:
 
 - **Agent 1 — `fraud-analysis-agent`**  tự động điều tra dữ liệu, phân tích, tìm kiếm các behavior pattern của fraudster từ đó chuẩn bị một báo cáo toàn diện về các trường hợp này.
 - **Agent 2 — `config-agent`**  lấy cảm hứng từ **Claude Code**, **Config Agent** hỗ trợ strategist các tác vụ liên quan đến việc set up rule configuration lên hệ thống **Risk Engine**. Từ pattern được đề xuất ở agent 1 (hoặc mô tả của strategist trên khung chat), agent phân tích, suy luận, trao đổi, tương tác với stragist để sinh ra các bộ Rule Config và thực hiện tích hợp vào hệ thống khi được chấp nhận.
----
-
-## Mục lục
-
-1. [Thành phần dự án](#1-thành-phần-dự-án)
-2. [Agent 1 — fraud-analysis-agent](#2-agent-1--fraud-analysis-agent-risk-analysis-agent)
-3. [Agent 2 — fraud-config-agent-v2](#3-agent-2--fraud-config-agent-v2-config-agent)
-4. [Tầng dữ liệu dùng chung](#4-tầng-dữ-liệu-dùng-chung-mysql-risk_db)
-5. [Chạy thử nhanh](#5-chạy-thử-nhanh)
-6. [Biến môi trường](#6-biến-môi-trường)
-7. [Triển khai](#8-triển-khai)
-8. [Cấu trúc repo](#9-cấu-trúc-repo)
 
 ---
 
@@ -39,12 +27,6 @@ Kiến trúc hệ thống của **AgentR**:
 | **`fraud-analysis-agent/`** | **Risk Analysis Agent** — phát hiện anomaly + điều tra ReAct + sinh RuleJSON, Fraud Analysis Report. FastAPI, port `8080` (map `8081` ngoài). | ✅ Active |
 | **`fraud-config-agent-v2/`** | **Config Agent (v2)** — sinh `FraudConfig` rule và ghi MySQL sau human review. FastAPI, port `8080` (map `8081`).                             | ✅ Active |
 | `risk-portal-ui/` | Frontend React + Vite (template Metronic 9) cho Risk Portal, gọi `fraud-analysis-agent`. Port `3000`.                                         | ✅ Active |
-| `config-agent/` | Phiên bản **V1** của Config Agent (có `rule.json`). Bị thay thế bởi `fraud-config-agent-v2`.                                                  | 🗄️ Legacy |
-| `agent/` + `ui/` | Scaffold demo gốc (một "Mock Interviewer" Streamlit) từ lúc khởi tạo project trên AgentBase. Không thuộc nghiệp vụ risk.                      | 🗄️ Legacy/demo |
-| `docs/` | Tài liệu thiết kế gốc (AgentR Overview/System Design PDF, knowledge base fraud, workflow, diagram).                                           | 📚 Reference |
-| `docker-compose.yml` | Orchestrate cả 4 service (agent demo, fraud-analysis-agent, ui, risk-portal-ui).                                                              | — |
-
-> `docker-compose.yml` ở root vẫn build service. Pipeline risk thực tế là **`fraud-analysis-agent` + `fraud-config-agent-v2` + `risk-portal-ui`**.
 
 ---
 
