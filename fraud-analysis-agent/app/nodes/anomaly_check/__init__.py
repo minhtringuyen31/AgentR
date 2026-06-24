@@ -16,11 +16,8 @@ import re
 from datetime import datetime
 from pathlib import Path
 
-import pandas as pd
-
-from app.nodes.anomaly_check.baseline import fetch_all_windows
-from app.shared.historical import aggregate_by
 from app.llm import get_llm
+from app.mcp_client import call_tool
 from app.state import AgentState, AnomalyDecision
 
 
@@ -57,42 +54,6 @@ def _read_strategy() -> tuple[list[str], str]:
                     dims = parsed
 
     return dims, body
-
-
-# ---------------------------------------------------------------------------
-# Aggregation helpers
-# ---------------------------------------------------------------------------
-
-def _period_summary(df: pd.DataFrame, label: str, dimensions: list[str]) -> dict:
-    """Build the per-period summary dict passed to the LLM."""
-    if df.empty:
-        return {
-            "label": label,
-            "total_amount_vnd": 0,
-            "total_count": 0,
-            **{f"by_{dim}": [] for dim in dimensions},
-        }
-    agg = aggregate_by(df, dimensions)
-    return {
-        "label": label,
-        "total_amount_vnd": int(df["userChargeAmount"].sum()),
-        "total_count": int(len(df)),
-        **{f"by_{dim}": agg.get(dim, []) for dim in dimensions},
-    }
-
-
-def _avg_4w_summary(df_4w: pd.DataFrame, label: str, dimensions: list[str]) -> dict:
-    """Divide 4-week totals by 4 to get the per-week average."""
-    s = _period_summary(df_4w, label, dimensions)
-    s["total_amount_vnd"] = s["total_amount_vnd"] // 4
-    s["total_count"] = s["total_count"] // 4
-    for dim in dimensions:
-        key = f"by_{dim}"
-        s[key] = [
-            {**item, "amount_vnd": item["amount_vnd"] // 4, "count": item["count"] // 4}
-            for item in s.get(key, [])
-        ]
-    return s
 
 
 # ---------------------------------------------------------------------------
@@ -135,24 +96,12 @@ def anomaly_check_node(state: AgentState) -> dict:
     fraud_context = state.get("fraud_context") or {}
     dimensions, strategy_body = _read_strategy()
 
-    # 1. Query all comparison windows from pom_acr
-    now = datetime.utcnow()
-    dfs, windows = fetch_all_windows(now)
+    # 1. Fetch aggregated baselines from MCP server (queries pom_acr for 9 windows)
+    periods = call_tool("fetch_anomaly_baselines", dimensions=dimensions)
+    if "error" in periods:
+        raise RuntimeError(f"fetch_anomaly_baselines failed: {periods['error']}")
 
-    # 2. Build per-period summaries
-    periods = {
-        "current_week":    _period_summary(dfs["current_week"],    windows["current_week"]["label"],    dimensions),
-        "prev_week":       _period_summary(dfs["prev_week"],       windows["prev_week"]["label"],       dimensions),
-        "current_month":   _period_summary(dfs["current_month"],   windows["current_month"]["label"],   dimensions),
-        "prev_month":      _period_summary(dfs["prev_month"],      windows["prev_month"]["label"],      dimensions),
-        "today":           _period_summary(dfs["today"],           windows["today"]["label"],           dimensions),
-        "yesterday":       _period_summary(dfs["yesterday"],       windows["yesterday"]["label"],       dimensions),
-        "rolling_7d":      _period_summary(dfs["rolling_7d"],      windows["rolling_7d"]["label"],      dimensions),
-        "rolling_7d_prev": _period_summary(dfs["rolling_7d_prev"], windows["rolling_7d_prev"]["label"], dimensions),
-        "avg_4w":          _avg_4w_summary(dfs["avg_4w_window"],   windows["avg_4w_window"]["label"],   dimensions),
-    }
-
-    # 3. LLM applies trigger rules from strategy
+    # 2. LLM applies trigger rules from strategy
     llm = get_llm(role="anomaly", thinking=True)
     user = (
         "report_context:\n"
@@ -171,11 +120,11 @@ def anomaly_check_node(state: AgentState) -> dict:
 
     decision = AnomalyDecision(**llm.complete_json(_build_system(strategy_body), user))
 
-    # Keep baseline_window / baseline_summary for backwards-compat with action_output_node
+    prev_week = periods.get("prev_week", {})
     return {
-        "baseline_window": {"start": windows["prev_week"]["start"], "end": windows["prev_week"]["end"], "column": "reqDate"},
-        "baseline_summary": periods["prev_week"],
-        "reported_summary": periods["current_week"],
+        "baseline_window": {"start": prev_week.get("start"), "end": prev_week.get("end"), "column": "reqDate"},
+        "baseline_summary": prev_week,
+        "reported_summary": periods.get("current_week", {}),
         "anomaly_decision": decision.model_dump(mode="json"),
     }
 
