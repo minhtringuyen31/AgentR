@@ -16,18 +16,6 @@ services:
     volumes:
       - sessions_data:/app/sessions
 
-  agent:
-    build: ./agent
-    ports:
-      - "8080:8080"
-    env_file: .env
-    environment:
-      - MYSQL_HOST=49.213.71.37
-      - MYSQL_PORT=3306
-      - MYSQL_DB=risk_db
-      - MYSQL_USER=root
-      - MYSQL_PASSWORD=agentdb@123
-
   fraud-analysis-agent:
     build: ./fraud-analysis-agent
     ports:
@@ -48,15 +36,6 @@ services:
     depends_on:
       - mcp-server
       - fraud-analysis-agent
-
-  ui:
-    build: ./ui
-    ports:
-      - "8501:8080"
-    environment:
-      - AGENT_ENDPOINT_URL=http://agent:8080
-    depends_on:
-      - agent
 
   risk-portal-ui:
     build:

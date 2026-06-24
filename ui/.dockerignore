@@ -1,5 +1,0 @@
-.env.ui
-__pycache__/
-*.pyc
-*.pyo
-.venv/
